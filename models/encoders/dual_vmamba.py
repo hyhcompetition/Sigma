@@ -32,7 +32,19 @@ class RGBXTransformer(nn.Module):
         
         self.ape = ape
 
-        self.vssm = Backbone_VSSM(
+        self.vssm3 = Backbone_VSSM(
+            in_chans=3,
+            pretrained=pretrained,
+            norm_layer=norm_layer,
+            num_classes=num_classes,
+            depths=depths,
+            dims=dims,
+            mlp_ratio=mlp_ratio,
+            downsample_version=downsample_version,
+            drop_path_rate=drop_path_rate,
+        )
+        self.vssm12 = Backbone_VSSM(
+            in_chans=12,
             pretrained=pretrained,
             norm_layer=norm_layer,
             num_classes=num_classes,
@@ -82,9 +94,10 @@ class RGBXTransformer(nn.Module):
         B = x_rgb.shape[0]
         outs_fused = []
         
-        outs_rgb = self.vssm(x_rgb) # B x C x H x W
-        outs_x = self.vssm(x_e) # B x C x H x W
-        
+        outs_rgb = self.vssm3(x_rgb) # B x C x H x W
+        outs_x = self.vssm12(x_e) # B x C x H x W
+        print(outs_rgb[0].shape)
+        print(outs_x[0].shape)
         for i in range(4):
             if self.ape:
                 # this has been discarded
@@ -142,3 +155,11 @@ class vssm_base(RGBXTransformer):
             downsample_version='v1',
             drop_path_rate=0.6, # VMamba-B with droppath 0.5 + no ema. VMamba-B* represents for VMamba-B with droppath 0.6 + ema
         )
+if __name__ == "__main__":
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    m = vssm_base().to(device)
+    a = torch.randn(4, 3, 256, 256).to(device)
+    b = torch.randn(4, 12, 256, 256).to(device)
+    out = m.forward_features(a,b)
+    print(out.shape)

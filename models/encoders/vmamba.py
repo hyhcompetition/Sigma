@@ -2167,7 +2167,7 @@ class Backbone_VSSM(VSSM):
                          downsample_version=downsample_version,
                          use_checkpoint=use_checkpoint,
                          **kwargs)
-        
+        self.in_chans = in_chans
         self.out_indices = out_indices
         for i in out_indices:
             layer = norm_layer(self.dims[i])
@@ -2178,13 +2178,19 @@ class Backbone_VSSM(VSSM):
         self.load_pretrained(pretrained)
 
     def load_pretrained(self, ckpt=None, key="model"):
+        #TODO: 3 chanels to 12 chanels 
         if ckpt is None:
             return
         
         try:
             _ckpt = torch.load(open(ckpt, "rb"), map_location=torch.device("cpu"))
+            # print(_ckpt['model'].keys())
             print(f"Successfully load ckpt {ckpt}")
-            # print(f"ckpt keys: {_ckpt['model'].keys()}")
+            if self.in_chans != 3:
+                pretrained_weight = _ckpt['model']['patch_embed.proj.weight']
+                new_weight = pretrained_weight.repeat(1, 4, 1, 1)
+                _ckpt['model']['patch_embed.proj.weight'] = new_weight
+            # print(f"ckpt keys: {_ckpt['model'].keys()}")c
             incompatibleKeys = self.load_state_dict(_ckpt[key], strict=False)
             print('incompatible:', incompatibleKeys)        
         except Exception as e:

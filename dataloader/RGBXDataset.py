@@ -3,7 +3,7 @@ from pickletools import uint8
 import cv2
 import torch
 import numpy as np
-
+import tifffile as tiff 
 import torch.utils.data as data
 
 
@@ -30,7 +30,13 @@ class RGBXDataset(data.Dataset):
         if self._file_length is not None:
             return self._file_length
         return len(self._file_names)
+#TODO: set MSI to RGB, SAR to model x
 
+#TODO: change SAR to 3 chanels
+
+    def _compose_sar(self, sar_data):
+        pass
+    
     def __getitem__(self, index):
         if self._file_length is not None:
             item_name = self._construct_new_file_names(self._file_length)[index]
@@ -52,7 +58,7 @@ class RGBXDataset(data.Dataset):
             x = cv2.merge([x, x, x])
         else:
             x =  self._open_image(x_path, cv2.COLOR_BGR2RGB)
-        
+        x = self._compose_sar(x)
         if self.preprocess is not None:
             rgb, gt, x = self.preprocess(rgb, gt, x)
 
@@ -98,7 +104,10 @@ class RGBXDataset(data.Dataset):
 
     @staticmethod
     def _open_image(filepath, mode=cv2.IMREAD_COLOR, dtype=None):
-        img = np.array(cv2.imread(filepath, mode), dtype=dtype)
+        if filepath.endswith('.tif'):
+            img = tiff.imread(filepath)
+        else:
+            img = np.array(cv2.imread(filepath, mode), dtype=dtype)
         return img
 
     @staticmethod

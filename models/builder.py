@@ -243,3 +243,6 @@ def selective_scan_flop_jit(inputs, outputs):
     N = inputs[2].type().sizes()[1]
     flops = flops_selective_scan_fn(B=B, L=L, D=D, N=N, with_D=True, with_Z=False)
     return flops
+
+if __name__ == "__main__":
+    pass
