@@ -10,7 +10,7 @@ import multiprocessing as mp
 
 from engine.logger import get_logger
 from utils.pyt_utils import load_model, link_file, ensure_dir
-from utils.transforms import pad_image_to_shape, normalize
+from utils.transforms import pad_image_to_shape, normalize, normalize_tif
 
 logger = get_logger()
 
@@ -243,7 +243,7 @@ class Evaluator(object):
 
     def multi_process_evaluation(self):
         start_eval_time = time.perf_counter()
-        nr_devices = len(self.devices)
+        nr_devices = 1
         stride = int(np.ceil(self.ndata / nr_devices))
 
         # start multi-process on multi-gpu
@@ -532,11 +532,11 @@ class Evaluator(object):
             im_r = p_img
             p_img = np.concatenate((im_b, im_g, im_r), amodal_xis=2)
     
-        p_img = normalize(p_img, self.norm_mean, self.norm_std)
+        p_img = normalize_tif(p_img, self.norm_mean[1], self.norm_std[1])
         if len(modal_x.shape) == 2:
-            p_modal_x = normalize(p_modal_x, 0, 1)
+            p_modal_x = normalize_tif(p_modal_x, 0, 1)
         else:
-            p_modal_x = normalize(p_modal_x, self.norm_mean, self.norm_std)
+            p_modal_x = normalize_tif(p_modal_x, self.norm_mean[0], self.norm_std[0])
     
         if crop_size is not None:
             p_img, margin = pad_image_to_shape(p_img, crop_size, cv2.BORDER_CONSTANT, value=0)

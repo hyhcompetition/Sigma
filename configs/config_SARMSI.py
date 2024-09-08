@@ -20,8 +20,8 @@ C.abs_dir = osp.realpath(".")
 """Dataset Path"""
 C.dataset_name = 'SARMSI'
 C.dataset_path = osp.join('/home/ps/Documents', 'dataset', 'MMSeg-YREB')
-C.rgb_root_folder = osp.join(C.dataset_path, 'train/SAR')
-C.rgb_format = '.png'
+C.rgb_root_folder = osp.join(C.dataset_path, 'train/MSI')
+C.rgb_format = '.tif'
 C.gt_root_folder = osp.join(C.dataset_path, 'train/label')
 C.gt_format = '.tif'
 C.gt_transform = False
@@ -29,7 +29,7 @@ C.gt_transform = False
 # True for most dataset valid, False for MFNet(?)
 C.x_root_folder = osp.join(C.dataset_path, 'train/SAR')
 C.x_format = '.tif'
-C.x_is_single_channel = True # True for raw depth, thermal and aolp/dolp(not aolp/dolp tri) input
+C.x_is_single_channel = False # True for raw depth, thermal and aolp/dolp(not aolp/dolp tri) input
 C.train_source = osp.join(C.dataset_path, "train.txt")
 C.eval_source = osp.join(C.dataset_path, "test.txt")
 C.is_test = False
@@ -42,8 +42,10 @@ C.class_names =   ["Background", "Tree", "Grassland", "Cropland", "Low Vegetatio
 C.background = 255
 C.image_height = 256
 C.image_width = 256
-C.norm_mean = np.array([0.485, 0.456, 0.406])
-C.norm_std = np.array([0.229, 0.224, 0.225])
+C.msi_norm_mean = np.array([0.28899123 ,0.18477944, 0.21290894 ,0.20759943, 0.30543466, 0.43783441, 0.45136956, 0.42964881, 0.46745622, 0.48824419 ,0.40102091, 0.32299836])
+C.msi_norm_std = np.array([0.16442725 ,0.11178964, 0.11402047 ,0.12219838 ,0.14251475 ,0.15574295 ,0.15772097 ,0.15017619 ,0.16167854 ,0.18364281 ,0.17198604 ,0.15986423])
+C.sar_norm_mean = np.array([0.4079025  ,0.40803026,0.40803026 ])
+C.sar_norm_std = np.array([0.07888634 ,0.07627525,0.07627525])
 
 """ Settings for network, this would be different for each kind of model"""
 C.backbone = 'sigma_tiny' # sigma_tiny / sigma_small / sigma_base
@@ -57,7 +59,7 @@ C.lr = 6e-5
 C.lr_power = 0.9
 C.momentum = 0.9
 C.weight_decay = 0.01
-C.batch_size = 8
+C.batch_size = 12
 C.nepochs = 500
 C.niters_per_epoch = C.num_train_imgs // C.batch_size  + 1
 C.num_workers = 16
@@ -73,11 +75,11 @@ C.bn_momentum = 0.1
 C.eval_stride_rate = 2 / 3
 C.eval_scale_array = [1] # [0.75, 1, 1.25] # 
 C.eval_flip = False # True # 
-C.eval_crop_size = [256, 256] # [height weight]
+C.eval_crop_size = [128, 128] # [height weight]
 
 """Store Config"""
-C.checkpoint_start_epoch = 10
-C.checkpoint_step = 5
+C.checkpoint_start_epoch = 2
+C.checkpoint_step = 1
 
 """Path Config"""
 def add_path(path):

@@ -3,7 +3,7 @@ import torch
 import numpy as np
 from torch.utils import data
 import random
-from utils.transforms import generate_random_crop_pos, random_crop_pad_to_shape, normalize
+from utils.transforms import generate_random_crop_pos, random_crop_pad_to_shape, normalize, normalize_tif
 
 def random_mirror(rgb, gt, modal_x):
     if random.random() >= 0.5:
@@ -48,7 +48,25 @@ class TrainPre(object):
         p_modal_x = p_modal_x.transpose(2, 0, 1)
         
         return p_rgb, p_gt, p_modal_x
+class TrainPreTif(object):
+    def __init__(self, norm_mean, norm_std, config):
+        self.sar_norm_mean = norm_mean[0]
+        self.msi_norm_mean = norm_mean[1]
+        self.sar_norm_std = norm_std[0]
+        self.msi_norm_std = norm_std[1]
+        self.config = config
 
+    def __call__(self, rgb, gt, modal_x):
+        rgb, gt, modal_x = random_mirror(rgb, gt, modal_x)
+
+
+        rgb = normalize_tif(rgb, self.msi_norm_mean, self.msi_norm_std)
+        modal_x = normalize_tif(modal_x, self.sar_norm_mean, self.sar_norm_std)
+
+        rgb = rgb.transpose(2, 0, 1)
+        modal_x = modal_x.transpose(2, 0, 1)
+        
+        return rgb, gt, modal_x
 class ValPre(object):
     def __call__(self, rgb, gt, modal_x):
         return rgb, gt, modal_x
@@ -66,7 +84,7 @@ def get_train_loader(engine, dataset, config):
                     'train_source': config.train_source,
                     'eval_source': config.eval_source,
                     'class_names': config.class_names}
-    train_preprocess = TrainPre(config.norm_mean, config.norm_std, config)
+    train_preprocess = TrainPreTif([config.sar_norm_mean, config.msi_norm_mean], [config.sar_norm_std, config.msi_norm_std], config)
 
     train_dataset = dataset(data_setting, "train", train_preprocess, config.batch_size * config.niters_per_epoch)
 

@@ -94,10 +94,8 @@ class RGBXTransformer(nn.Module):
         B = x_rgb.shape[0]
         outs_fused = []
         
-        outs_rgb = self.vssm3(x_rgb) # B x C x H x W
-        outs_x = self.vssm12(x_e) # B x C x H x W
-        print(outs_rgb[0].shape)
-        print(outs_x[0].shape)
+        outs_rgb = self.vssm12(x_rgb) # B x C x H x W
+        outs_x = self.vssm3(x_e) # B x C x H x W
         for i in range(4):
             if self.ape:
                 # this has been discarded

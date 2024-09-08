@@ -38,7 +38,7 @@ with Engine(custom_parser=parser) as engine:
     args = parser.parse_args()
     print(args)
     
-    dataset_name = args.dataset_name
+    dataset_name = 'sarmsi'
     if dataset_name == 'mfnet':
         from configs.config_MFNet import config
     elif dataset_name == 'pst':
@@ -47,6 +47,8 @@ with Engine(custom_parser=parser) as engine:
         from configs.config_nyu import config
     elif dataset_name == 'sun':
         from configs.config_sunrgbd import config
+    elif dataset_name == 'sarmsi':
+        from configs.config_SARMSI import config
     else:
         raise ValueError('Not a valid dataset name')
 
@@ -217,10 +219,10 @@ with Engine(custom_parser=parser) as engine:
                 if (epoch >= config.checkpoint_start_epoch) and (epoch - config.checkpoint_start_epoch) % config.checkpoint_step == 0:
                     model.eval() 
                     with torch.no_grad():
-                        all_dev = parse_devices(args.devices)
+                        # all_dev = parse_devices(args.devices)
                         # network = segmodel(cfg=config, criterion=None, norm_layer=nn.BatchNorm2d).cuda(all_dev[0])
                         segmentor = SegEvaluator(dataset=val_dataset, class_num=config.num_classes,
-                                                norm_mean=config.norm_mean, norm_std=config.norm_std,
+                                                norm_mean=[config.sar_norm_mean, config.msi_norm_mean], norm_std=[config.sar_norm_std, config.msi_norm_std],
                                                 network=model, multi_scales=config.eval_scale_array,
                                                 is_flip=config.eval_flip, devices=[model.device],
                                                 verbose=False, config=config,
@@ -250,7 +252,7 @@ with Engine(custom_parser=parser) as engine:
                 with torch.no_grad():
                     devices_val = [engine.local_rank] if engine.distributed else [0]
                     segmentor = SegEvaluator(dataset=val_dataset, class_num=config.num_classes,
-                                            norm_mean=config.norm_mean, norm_std=config.norm_std,
+                                            norm_mean=[config.sar_norm_mean, config.msi_norm_mean], norm_std=[config.sar_norm_std, config.msi_norm_std],
                                             network=model, multi_scales=config.eval_scale_array,
                                             is_flip=config.eval_flip, devices=[1,2,3],
                                             verbose=False, config=config,

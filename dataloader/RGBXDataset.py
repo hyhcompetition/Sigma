@@ -35,17 +35,30 @@ class RGBXDataset(data.Dataset):
 #TODO: change SAR to 3 chanels
 
     def _compose_sar(self, sar_data):
-        pass
+        if sar_data.shape[-1] != 2:
+            return sar_data
+
+        # 计算两个通道的均值，保持 h,w 形状
+        mean_channel = np.mean(sar_data, axis=-1)  # 在通道维度(0)计算均值
+
+        # 扩展均值通道为 1,h,w 形状
+        mean_channel = np.expand_dims(mean_channel, axis=-1)
+
+        # 在原数组上添加均值通道，得到 3,h,w 形状的输出
+        output_array = np.concatenate((sar_data, mean_channel), axis=-1)
+
+        return output_array
+            
     
     def __getitem__(self, index):
         if self._file_length is not None:
             item_name = self._construct_new_file_names(self._file_length)[index]
         else:
             item_name = self._file_names[index]
+        item_name = item_name[:-4]
         rgb_path = os.path.join(self._rgb_path, item_name + self._rgb_format)
         x_path = os.path.join(self._x_path, item_name + self._x_format)
         gt_path = os.path.join(self._gt_path, item_name + self._gt_format)
-
         # Check the following settings if necessary
         rgb = self._open_image(rgb_path, cv2.COLOR_BGR2RGB)
 
@@ -61,12 +74,11 @@ class RGBXDataset(data.Dataset):
         x = self._compose_sar(x)
         if self.preprocess is not None:
             rgb, gt, x = self.preprocess(rgb, gt, x)
-
+        
         if self._split_name == 'train':
             rgb = torch.from_numpy(np.ascontiguousarray(rgb)).float()
             gt = torch.from_numpy(np.ascontiguousarray(gt)).long()
             x = torch.from_numpy(np.ascontiguousarray(x)).float()
-
         output_dict = dict(data=rgb, label=gt, modal_x=x, fn=str(item_name), n=len(self._file_names))
 
         return output_dict
@@ -76,7 +88,7 @@ class RGBXDataset(data.Dataset):
         source = self._train_source
         if split_name == "val":
             source = self._eval_source
-
+        
         file_names = []
         with open(source) as f:
             files = f.readlines()
@@ -136,3 +148,8 @@ class RGBXDataset(data.Dataset):
             cmap[i, 2] = b
         class_colors = cmap.tolist()
         return class_colors
+
+if __name__ == "__main__":
+    
+    data = RGBXDataset()
+    pass
