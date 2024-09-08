@@ -2,7 +2,7 @@ import os
 import cv2
 import argparse
 import numpy as np
-
+import tifffile as tiff
 import torch
 import torch.nn as nn
 
@@ -25,6 +25,7 @@ class SegEvaluator(Evaluator):
         modal_x = data['modal_x']
         name = data['fn']
         pred = self.sliding_eval_rgbX(img, modal_x, config.eval_crop_size, config.eval_stride_rate, device)
+        print(type(pred))
         hist_tmp, labeled_tmp, correct_tmp = hist_info(config.num_classes, pred, label)
         results_dict = {'hist': hist_tmp, 'labeled': labeled_tmp, 'correct': correct_tmp}
 
@@ -32,19 +33,19 @@ class SegEvaluator(Evaluator):
             ensure_dir(self.save_path)
             ensure_dir(self.save_path+'_color')
 
-            fn = name + '.png'
+            fn = name
 
-            # save colored result
-            result_img = Image.fromarray(pred.astype(np.uint8), mode='P')
-            class_colors = self.dataset.get_class_colors()
-            palette_list = list(np.array(class_colors).flat)
-            if len(palette_list) < 768:
-                palette_list += [0] * (768 - len(palette_list))
-            result_img.putpalette(palette_list)
-            result_img.save(os.path.join(self.save_path+'_color', fn))
+            # # save colored result
+            # result_img = Image.fromarray(pred.astype(np.uint8), mode='P')
+            # class_colors = self.dataset.get_class_colors()
+            # palette_list = list(np.array(class_colors).flat)
+            # if len(palette_list) < 768:
+            #     palette_list += [0] * (768 - len(palette_list))
+            # result_img.putpalette(palette_list)
+            # result_img.save(os.path.join(self.save_path+'_color', fn+'.png'))
 
             # save raw result
-            cv2.imwrite(os.path.join(self.save_path, fn), pred)
+            tiff.imsave(os.path.join(self.save_path, fn+'.tif'), pred.astype(np.uint8))
             logger.info('Save the image ' + fn)
 
         if self.show_image:
@@ -97,28 +98,30 @@ if __name__ == "__main__":
         from configs.config_nyu import config
     elif dataset_name == 'sun':
         from configs.config_sunrgbd import config
+    elif dataset_name == 'sarmsi':
+        from configs.config_SARMSI import config
     else:
         raise ValueError('Not a valid dataset name')
 
     network = segmodel(cfg=config, criterion=None, norm_layer=nn.BatchNorm2d)
-    data_setting = {'rgb_root': config.rgb_root_folder,
+    data_setting = {'rgb_root': "/home/ps/Documents/dataset/MMSeg-YREB/test/MSI",
                     'rgb_format': config.rgb_format,
-                    'gt_root': config.gt_root_folder,
+                    'gt_root': "/home/ps/Documents/dataset/MMSeg-YREB/test/label",
                     'gt_format': config.gt_format,
                     'transform_gt': config.gt_transform,
-                    'x_root':config.x_root_folder,
+                    'x_root':"/home/ps/Documents/dataset/MMSeg-YREB/test/SAR",
                     'x_format': config.x_format,
                     'x_single_channel': config.x_is_single_channel,
                     'class_names': config.class_names,
                     'train_source': config.train_source,
-                    'eval_source': config.eval_source,
+                    'eval_source': "/home/ps/Documents/dataset/MMSeg-YREB/inference.txt",
                     'class_names': config.class_names}
     val_pre = ValPre()
     dataset = RGBXDataset(data_setting, 'val', val_pre)
  
     with torch.no_grad():
-        segmentor = SegEvaluator(dataset, config.num_classes, config.norm_mean,
-                                 config.norm_std, network,
+        segmentor = SegEvaluator(dataset, config.num_classes, [config.sar_norm_mean, config.msi_norm_mean],
+                                 [config.sar_norm_std, config.msi_norm_std], network,
                                  config.eval_scale_array, config.eval_flip,
                                  all_dev, args.verbose, args.save_path,
                                  args.show_image, config)

@@ -11,7 +11,7 @@ from engine.logger import get_logger
 logger = get_logger()
 
 class EncoderDecoder(nn.Module):
-    def __init__(self, cfg=None, criterion=nn.CrossEntropyLoss(reduction='mean', ignore_index=255), norm_layer=nn.BatchNorm2d):
+    def __init__(self, cfg=None, criterion=nn.CrossEntropyLoss(reduction='mean', ignore_index=255, weight=torch.tensor([1.0, 1.0, 2.0, 1.0, 2.0, 1.0,1.0,1.0,1.0,2.0])), norm_layer=nn.BatchNorm2d):
         super(EncoderDecoder, self).__init__()
         self.channels = [64, 128, 320, 512]
         self.norm_layer = norm_layer

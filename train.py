@@ -82,7 +82,10 @@ with Engine(custom_parser=parser) as engine:
         BatchNorm2d = nn.BatchNorm2d
     
     model=segmodel(cfg=config, criterion=criterion, norm_layer=BatchNorm2d)
-    
+    #TODO: resume
+    param_dict = torch.load("log_final/log_pst900/log_SARMSI_sigma_tiny_cromb_conmb_cvssdecoder/checkpoint/epoch-72.pth")
+    un = model.load_state_dict(param_dict['model'])
+
     # group weight and config optimizer
     base_lr = config.lr
     if engine.distributed:
@@ -97,6 +100,8 @@ with Engine(custom_parser=parser) as engine:
         optimizer = torch.optim.SGD(params_list, lr=base_lr, momentum=config.momentum, weight_decay=config.weight_decay)
     else:
         raise NotImplementedError
+    #TODO: resume
+    optimizer.load_state_dict(param_dict['optimizer'])
 
     # config lr policy
     total_iteration = config.nepochs * config.niters_per_epoch
@@ -111,7 +116,11 @@ with Engine(custom_parser=parser) as engine:
     else:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model.to(device)
-
+    #TODO: resume
+    for state in optimizer.state.values():
+        for k, v in state.items():
+            if isinstance(v, torch.Tensor):
+                state[k] = v.to(device)
     engine.register_state(dataloader=train_loader, model=model,
                           optimizer=optimizer)
     if engine.continue_state_object:
@@ -140,7 +149,7 @@ with Engine(custom_parser=parser) as engine:
     best_mean_iou = 0.0  # Track the best mean IoU for model saving
     best_epoch = 100000  # Track the epoch with the best mean IoU for model saving
     
-    for epoch in range(engine.state.epoch, config.nepochs+1):
+    for epoch in range(int(param_dict['epoch'])+1, config.nepochs+1):
         if engine.distributed:
             train_sampler.set_epoch(epoch)
         bar_format = '{desc}[{elapsed}<{remaining},{rate_fmt}]'

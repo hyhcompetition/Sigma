@@ -243,7 +243,7 @@ class Evaluator(object):
 
     def multi_process_evaluation(self):
         start_eval_time = time.perf_counter()
-        nr_devices = 1
+        nr_devices = 2
         stride = int(np.ceil(self.ndata / nr_devices))
 
         # start multi-process on multi-gpu
