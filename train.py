@@ -83,7 +83,7 @@ with Engine(custom_parser=parser) as engine:
     
     model=segmodel(cfg=config, criterion=criterion, norm_layer=BatchNorm2d)
     #TODO: resume
-    param_dict = torch.load("log_final/log_pst900/log_SARMSI_sigma_tiny_cromb_conmb_cvssdecoder/checkpoint/epoch-72.pth")
+    param_dict = torch.load("log_final/log_pst900/log_SARMSI_sigma_tiny_cromb_conmb_cvssdecoder/checkpoint/epoch-74.pth")
     un = model.load_state_dict(param_dict['model'])
 
     # group weight and config optimizer
@@ -101,7 +101,7 @@ with Engine(custom_parser=parser) as engine:
     else:
         raise NotImplementedError
     #TODO: resume
-    optimizer.load_state_dict(param_dict['optimizer'])
+    # optimizer.load_state_dict(param_dict['optimizer'])
 
     # config lr policy
     total_iteration = config.nepochs * config.niters_per_epoch

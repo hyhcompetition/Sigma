@@ -25,7 +25,6 @@ class SegEvaluator(Evaluator):
         modal_x = data['modal_x']
         name = data['fn']
         pred = self.sliding_eval_rgbX(img, modal_x, config.eval_crop_size, config.eval_stride_rate, device)
-        print(type(pred))
         hist_tmp, labeled_tmp, correct_tmp = hist_info(config.num_classes, pred, label)
         results_dict = {'hist': hist_tmp, 'labeled': labeled_tmp, 'correct': correct_tmp}
 
