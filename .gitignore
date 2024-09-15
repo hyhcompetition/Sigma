@@ -144,3 +144,9 @@ try.py
 read.py
 
 pretrained/
+results/
+results*/
+*results/
+results*
+*.zip
+*vis*/

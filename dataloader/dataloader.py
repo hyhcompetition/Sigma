@@ -5,6 +5,11 @@ from torch.utils import data
 import random
 from utils.transforms import generate_random_crop_pos, random_crop_pad_to_shape, normalize, normalize_tif
 import random
+import numpy as np
+import random
+from scipy.ndimage import label
+from skimage.measure import regionprops
+
 def random_mirror(rgb, gt, modal_x):
     if random.random() >= 0.5:
         rgb = cv2.flip(rgb, 1)
@@ -12,50 +17,95 @@ def random_mirror(rgb, gt, modal_x):
         modal_x = cv2.flip(modal_x, 1)
 
     return rgb, gt, modal_x
-def copy_paste(rgb, gt, modal_x, target_classes, max_shift=50):
-    if random.random() < 0.3:
+def random_copy_paste(rgb, gt, modal_x, class_indices):
+    """
+    对单个图像对进行随机复制-粘贴数据增强。
+
+    参数：
+    - rgb: RGB图像，形状为 (H, W, C) 的 numpy 数组。
+    - gt: 掩码图像，形状为 (H, W) 的 numpy 数组，像素值为类别索引。
+    - modal_x: 另一种模态的图像，形状为 (H, W, C') 的 numpy 数组。
+    - class_indices: 需要增强的类别索引列表。
+
+    返回：
+    - rgb_aug: 增强后的 RGB 图像。
+    - gt_aug: 增强后的掩码图像。
+    - modal_x_aug: 增强后的模态图像。
+    """
+    # 随机决定是否进行增强
+    if random.random() > 0.2:
         return rgb, gt, modal_x
-    # Find the indices where the target class is located in the gt mask
-    
-    target_class = random.choice(target_classes)
-    target_indices = np.where(gt == target_class)
-    
-    # If the target class does not exist in the mask, return the original images
-    if len(target_indices[0]) == 0:
+
+    # 创建指定类别的掩码
+    class_mask = np.isin(gt, class_indices).astype(np.uint8)
+    # 标记连通区域
+    labeled_mask, num_features = label(class_mask)
+    regions = regionprops(labeled_mask)
+
+    # 如果没有找到区域，返回原图像
+    if num_features == 0:
         return rgb, gt, modal_x
 
-    # Get the bounding box of the target region
-    y_min, y_max = target_indices[0].min(), target_indices[0].max()
-    x_min, x_max = target_indices[1].min(), target_indices[1].max()
-    
-    # Extract the region from rgb and modal_x corresponding to the target class
-    rgb_region = rgb[y_min:y_max + 1, x_min:x_max + 1, :]
-    modal_x_region = modal_x[y_min:y_max + 1, x_min:x_max + 1, :]
-    gt_region = gt[y_min:y_max + 1, x_min:x_max + 1]
+    # 随机选择一些区域进行复制
+    num_regions_to_copy = random.randint(1, len(regions))
+    regions_to_copy = random.sample(regions, num_regions_to_copy)
 
-    # Get the height and width of the extracted region
-    region_height, region_width = rgb_region.shape[:2]
+    # 复制原始图像，用于修改
+    rgb_aug = rgb.copy()
     
-    # Calculate a random shift to paste the region at a new location
-    shift_y = random.randint(-max_shift, max_shift)
-    shift_x = random.randint(-max_shift, max_shift)
-    
-    # Calculate the new location to paste the region
-    new_y_min = max(0, y_min + shift_y)
-    new_x_min = max(0, x_min + shift_x)
-    new_y_max = min(rgb.shape[0], new_y_min + region_height)
-    new_x_max = min(rgb.shape[1], new_x_min + region_width)
-    
-    # Adjust the region size if it goes beyond the image boundaries
-    new_y_min = new_y_max - region_height
-    new_x_min = new_x_max - region_width
 
-    # Paste the region onto the new location in rgb and modal_x
-    rgb[new_y_min:new_y_max, new_x_min:new_x_max, :] = rgb_region
-    modal_x[new_y_min:new_y_max, new_x_min:new_x_max, :] = modal_x_region
-    gt[new_y_min:new_y_max, new_x_min:new_x_max] = gt_region
-    
-    return rgb, gt, modal_x
+    gt_aug = gt.copy()
+    modal_x_aug = modal_x.copy()
+
+    h, w = gt.shape
+
+    for region in regions_to_copy:
+        # 获取区域的边界框
+        min_row, min_col, max_row, max_col = region.bbox
+        region_height = max_row - min_row
+        region_width = max_col - min_col
+
+        region_slice = (slice(min_row, max_row), slice(min_col, max_col))
+
+        # 提取区域的图像和掩码
+        object_rgb = rgb[region_slice]
+        object_gt = gt[region_slice]
+        object_modal_x = modal_x[region_slice]
+
+        object_mask = (labeled_mask[region_slice] == region.label).astype(np.uint8)
+
+        # 在图像内随机选择粘贴位置
+        paste_row = random.randint(0, h - region_height)
+        paste_col = random.randint(0, w - region_width)
+        paste_slice = (slice(paste_row, paste_row + region_height), slice(paste_col, paste_col + region_width))
+
+        # 检查粘贴区域是否与已有对象重叠
+        existing_gt = gt_aug[paste_slice]
+        existing_mask = (existing_gt != 0).astype(np.uint8)
+        overlap = existing_mask * object_mask
+
+        if np.any(overlap):
+            continue  # 如果有重叠，跳过这次粘贴
+
+        # 进行粘贴
+        # 对 RGB 图像
+        for c in range(rgb.shape[2]):
+            channel = rgb_aug[paste_slice][:, :, c]
+            channel[object_mask != 0] = object_rgb[:, :, c][object_mask != 0]
+            rgb_aug[paste_slice][:, :, c] = channel
+
+        # 对 modal_x 图像
+        for c in range(modal_x.shape[2]):
+            channel = modal_x_aug[paste_slice][:, :, c]
+            channel[object_mask != 0] = object_modal_x[:, :, c][object_mask != 0]
+            modal_x_aug[paste_slice][:, :, c] = channel
+
+        # 对 gt 掩码
+        gt_channel = gt_aug[paste_slice]
+        gt_channel[object_mask != 0] = object_gt[object_mask != 0]
+        gt_aug[paste_slice] = gt_channel
+
+    return rgb_aug, gt_aug, modal_x_aug
 
 def random_rotate(rgb, gt, modal_x, angle_range=(-180, 180)):
     if random.random() > 0.5:
@@ -131,6 +181,7 @@ class TrainPreTif(object):
 
     def __call__(self, rgb, gt, modal_x):
         # rgb, gt, modal_x = copy_paste(rgb, gt, modal_x, [2,5,9])
+        rgb, gt, modal_x = random_copy_paste(rgb, gt, modal_x, [5,9])
         rgb, gt, modal_x = random_mirror(rgb, gt, modal_x)
         rgb, gt, modal_x = random_rotate(rgb, gt, modal_x)
         

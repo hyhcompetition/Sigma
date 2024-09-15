@@ -188,6 +188,7 @@ def normalize(img, mean, std):
 
 def normalize_tif(img, mean, std):
     # pytorch pretrained model need the input range: 0-1
+    img = img.astype(np.float64)
     img_min = img.min(axis=(0, 1), keepdims=True)
     img_max = img.max(axis=(0, 1), keepdims=True)
     img = (img - img_min) / (img_max - img_min + 1e-8) 

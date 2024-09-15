@@ -33,7 +33,7 @@ C.x_is_single_channel = False # True for raw depth, thermal and aolp/dolp(not ao
 C.train_source = osp.join(C.dataset_path, "train.ex.txt")
 C.eval_source = osp.join(C.dataset_path, "test.txt")
 C.is_test = False
-C.num_train_imgs = 12847
+C.num_train_imgs = 12848
 C.num_eval_imgs = 1000
 C.num_classes = 10
 C.class_names =   ["Background", "Tree", "Grassland", "Cropland", "Low Vegetation", "Wetland", "Water", "Built-up", "Bare ground", "Snow"]
@@ -48,7 +48,7 @@ C.sar_norm_mean = np.array([0.4079025  ,0.40803026,0.40803026 ])
 C.sar_norm_std = np.array([0.07888634 ,0.07627525,0.07627525])
 
 """ Settings for network, this would be different for each kind of model"""
-C.backbone = 'sigma_tiny' # sigma_tiny / sigma_small / sigma_base
+C.backbone = 'sigma_base' # sigma_tiny / sigma_small / sigma_base
 C.pretrained_model = None # do not need to change
 C.decoder = 'MambaDecoder' # 'MLPDecoder'
 C.decoder_embed_dim = 512
@@ -60,7 +60,7 @@ C.lr_power = 0.9
 C.momentum = 0.9
 C.weight_decay = 0.01
 C.batch_size = 12
-C.nepochs = 500
+C.nepochs = 80                                                                                                                                                                                                                                                                                                                                                                                                                                                       
 C.niters_per_epoch = C.num_train_imgs // C.batch_size  + 1
 C.num_workers = 16
 C.train_scale_array = [0.5, 0.75, 1, 1.25, 1.5, 1.75]
@@ -73,9 +73,9 @@ C.bn_momentum = 0.1
 """Eval Config"""
 # C.eval_iter = 1
 C.eval_stride_rate = 2 / 3
-C.eval_scale_array = [1] # [0.75, 1, 1.25] # 
+C.eval_scale_array = [1]#[0.75, 1, 1.25] # 
 C.eval_flip = False # True # 
-C.eval_crop_size = [128, 128] # [height weight]
+C.eval_crop_size = [256, 256] # [height weight]
 
 """Store Config"""
 C.checkpoint_start_epoch = 2

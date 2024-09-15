@@ -26,9 +26,9 @@ from engine.logger import get_logger
 from utils.metric import hist_info, compute_score
 from eval import SegEvaluator
 import shutil
-
+import segmentation_models_pytorch as smp
 from tensorboardX import SummaryWriter
-
+from models.builder import verify_and_print_unfrozen_layers, freeze_module
 parser = argparse.ArgumentParser()
 logger = get_logger()
 
@@ -74,23 +74,30 @@ with Engine(custom_parser=parser) as engine:
         engine.link_tb(tb_dir, generate_tb_dir)
 
     # config network and criterion
-    criterion = nn.CrossEntropyLoss(reduction='mean', ignore_index=config.background)
+    criterion = nn.CrossEntropyLoss(reduction='mean', ignore_index=255, weight=torch.tensor([1.0, 1.0, 2.0, 1.0, 2.0, 1.0,1.0,1.0,1.0,2.0]))#smp.losses.TverskyLoss(mode='multiclass') smp.losses.TverskyLoss(mode='multiclass')
 
     if engine.distributed:
         BatchNorm2d = nn.SyncBatchNorm
     else:
         BatchNorm2d = nn.BatchNorm2d
-    
+    s_epoch  = 1
     model=segmodel(cfg=config, criterion=criterion, norm_layer=BatchNorm2d)
     #TODO: resume
-    param_dict = torch.load("log_final/log_pst900/log_SARMSI_sigma_tiny_cromb_conmb_cvssdecoder/checkpoint/epoch-74.pth")
-    un = model.load_state_dict(param_dict['model'])
-
+    resume = "log_final/log_pst900/log_SARMSI_sigma_base_cromb_conmb_cvssdecoder/checkpoint/epoch-58.pth" # "log_final/log_pst900/log_SARMSI_sigma_base_cromb_conmb_cvssdecoder/checkpoint/epoch-8.pth" # "vssm12-log/log_pst900/log_SARMSI_sigma_tiny_cromb_conmb_cvssdecoder/checkpoint/epoch-72.pth"
+    if resume is not None:
+        param_dict = torch.load(resume)
+        un = model.load_state_dict(param_dict['model'])
+        # print(param_dict['model'].keys())
+        s_epoch = int(param_dict['epoch'])+1
+        del param_dict
     # group weight and config optimizer
+    # freeze_module(model, 'backbone', False)
+    # freeze_module(model, 'preprocess', False)
+    # freeze_module(model, 'decode_head', False)
     base_lr = config.lr
     if engine.distributed:
         base_lr = config.lr
-    
+
     params_list = []
     params_list = group_weight(params_list, model, BatchNorm2d, base_lr)
     
@@ -101,7 +108,7 @@ with Engine(custom_parser=parser) as engine:
     else:
         raise NotImplementedError
     #TODO: resume
-    # optimizer.load_state_dict(param_dict['optimizer'])
+    optimizer.load_state_dict(param_dict['optimizer'])
 
     # config lr policy
     total_iteration = config.nepochs * config.niters_per_epoch
@@ -128,6 +135,7 @@ with Engine(custom_parser=parser) as engine:
 
     optimizer.zero_grad()
     model.train()
+    # model.backbone.eval()
     logger.info('begin trainning:')
     
     # Initialize the evaluation dataset and evaluator
@@ -145,11 +153,11 @@ with Engine(custom_parser=parser) as engine:
                     'class_names': config.class_names}
     val_pre = ValPre()
     val_dataset = RGBXDataset(val_setting, 'val', val_pre)
-
+    
+    # verify_and_print_unfrozen_layers(model)
     best_mean_iou = 0.0  # Track the best mean IoU for model saving
     best_epoch = 100000  # Track the epoch with the best mean IoU for model saving
-    
-    for epoch in range(int(param_dict['epoch'])+1, config.nepochs+1):
+    for epoch in range(s_epoch, config.nepochs+1):
         if engine.distributed:
             train_sampler.set_epoch(epoch)
         bar_format = '{desc}[{elapsed}<{remaining},{rate_fmt}]'

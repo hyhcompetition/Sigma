@@ -7,14 +7,95 @@ from utils.load_utils import load_pretrain
 from functools import partial
 
 from engine.logger import get_logger
+from mmcv.ops import DeformConv2d
+
+# Define deformable convolutional layer
+class DeformableConvLayer(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=1):
+        super(DeformableConvLayer, self).__init__()
+        self.offset_conv = nn.Conv2d(in_channels, 2 * kernel_size * kernel_size, kernel_size, stride, padding)
+        self.deform_conv = DeformConv2d(in_channels, out_channels, kernel_size, stride, padding)
+
+    def forward(self, x):
+        offset = self.offset_conv(x)
+        x = self.deform_conv(x, offset)
+        return x
 
 logger = get_logger()
+class ChannelAttention(nn.Module):
+    def __init__(self, in_channels, reduction=4):
+        super(ChannelAttention, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+        
+        self.fc1 = nn.Conv2d(in_channels, in_channels // reduction, 1, bias=False)
+        self.relu = nn.ReLU()
+        self.fc2 = nn.Conv2d(in_channels // reduction, in_channels, 1, bias=False)
+        self.sigmoid = nn.Sigmoid()
+        
+    def forward(self, x):
+        avg_out = self.fc2(self.relu(self.fc1(self.avg_pool(x))))
+        max_out = self.fc2(self.relu(self.fc1(self.max_pool(x))))
+        out = avg_out + max_out
+        return self.sigmoid(out)
+
+class SpatialAttention(nn.Module):
+    def __init__(self, kernel_size=7):
+        super(SpatialAttention, self).__init__()
+        self.conv1 = nn.Conv2d(2, 1, kernel_size, padding=(kernel_size - 1) // 2, bias=False)
+        self.sigmoid = nn.Sigmoid()
+        
+    def forward(self, x):
+        avg_out = torch.mean(x, dim=1, keepdim=True)
+        max_out, _ = torch.max(x, dim=1, keepdim=True)
+        x = torch.cat([avg_out, max_out], dim=1)
+        x = self.conv1(x)
+        return self.sigmoid(x)
+
+class CBAM(nn.Module):
+    def __init__(self, in_channels, reduction=3, kernel_size=3):
+        super(CBAM, self).__init__()
+        self.channel_attention = ChannelAttention(in_channels, reduction)
+        self.spatial_attention = SpatialAttention(kernel_size)
+        
+    def forward(self, x):
+        x = x * self.channel_attention(x)
+        x = x * self.spatial_attention(x)
+        return x
+class DFCBAMBlock(nn.Module):
+    def __init__(self, embed_dims):
+        super(DFCBAMBlock, self).__init__()
+        layers = []
+        
+        for i in range(len(embed_dims) - 1):
+            layers.append(nn.Sequential(
+                DeformableConvLayer(embed_dims[i], embed_dims[i+1], kernel_size=3),
+                CBAM(embed_dims[i+1]),
+                nn.BatchNorm2d(embed_dims[i+1])
+            ))
+        
+        self.block = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.block(x)
+class PreProcess(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.embed_dim1 = [12, 32, 12]
+        self.embed_dim2 = [3, 12, 3]
+        self.block12 = DFCBAMBlock(self.embed_dim1)
+        self.block3 = DFCBAMBlock(self.embed_dim2)
+    def forward(self, x, y):
+        x = self.block12(x)
+        y = self.block3(y)
+        return x,y    
 
 class EncoderDecoder(nn.Module):
     def __init__(self, cfg=None, criterion=nn.CrossEntropyLoss(reduction='mean', ignore_index=255, weight=torch.tensor([1.0, 1.0, 2.0, 1.0, 2.0, 1.0,1.0,1.0,1.0,2.0])), norm_layer=nn.BatchNorm2d):
         super(EncoderDecoder, self).__init__()
         self.channels = [64, 128, 320, 512]
         self.norm_layer = norm_layer
+        self.preprocess = PreProcess()
         # import backbone and decoder
         if cfg.backbone == 'swin_s':
             logger.info('Using backbone: Swin-Transformer-small')
@@ -144,6 +225,7 @@ class EncoderDecoder(nn.Module):
             return x_last, x_output_0, x_output_1, x_output_2
 
     def forward(self, rgb, modal_x, label=None):
+        rgb, modal_x = self.preprocess(rgb, modal_x)
         if not self.deep_supervision:
             if self.aux_head:
                 out, aux_fm = self.encode_decode(rgb, modal_x)
@@ -243,6 +325,53 @@ def selective_scan_flop_jit(inputs, outputs):
     N = inputs[2].type().sizes()[1]
     flops = flops_selective_scan_fn(B=B, L=L, D=D, N=N, with_D=True, with_Z=False)
     return flops
+def freeze_module(model, module_name, flag:False):
+    """
+    Freeze all the parameters in a specific module of the model.
 
+    Args:
+    model (torch.nn.Module): The PyTorch model.
+    module_name (str): The name of the module to freeze (e.g., 'backbone').
+
+    Returns:
+    None
+    """
+    # Check if the module exists in the model
+    if hasattr(model, module_name):
+        module = getattr(model, module_name)
+        # Freeze the parameters in the module
+        for param in module.parameters():
+            param.requires_grad = flag
+        print(f"All parameters in {module_name}  unfrozen:{flag}.")
+    else:
+        print(f"Module {module_name} not found in the model.")
+        
+def verify_and_print_unfrozen_layers(model: nn.Module):
+    """
+    Verifies if a PyTorch model has any unfrozen layers and prints their names.
+    
+    Args:
+        model (nn.Module): The model to be checked.
+        
+    Returns:
+        bool: True if all parameters are unfrozen (requires_grad=True), 
+              False if any parameter is frozen (requires_grad=False).
+    """
+    has_unfrozen_layers = False
+
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            print(f"Layer '{name}' is unfrozen.")
+            has_unfrozen_layers = True
+    
+    if not has_unfrozen_layers:
+        print("No layers are unfrozen.")
+    
+    return has_unfrozen_layers
 if __name__ == "__main__":
-    pass
+    from configs.config_SARMSI import config
+    m = EncoderDecoder(config)
+    freeze_module(m, 'backbone')
+    freeze_module(m, 'preprocess')
+    verify_and_print_unfrozen_layers(m)
+    # print(m)
