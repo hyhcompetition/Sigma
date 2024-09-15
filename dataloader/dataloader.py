@@ -17,6 +17,55 @@ def random_mirror(rgb, gt, modal_x):
         modal_x = cv2.flip(modal_x, 1)
 
     return rgb, gt, modal_x
+
+def random_patch_shuffle(rgb, gt, modal_x):
+    if random.random() > 0.5:
+        return rgb, gt, modal_x
+
+    # 获取图像尺寸
+    h, w = rgb.shape[:2]
+
+    # 定义每个块的尺寸，这里是64x64
+    patch_size = 64
+
+    # 检查图像尺寸是否能被patch_size整除
+    assert h % patch_size == 0 and w % patch_size == 0, "图像尺寸必须是64的倍数"
+
+    # 计算每个维度上的块数
+    num_patches_h = h // patch_size
+    num_patches_w = w // patch_size
+
+    # 生成块的索引
+    idxs = [(i, j) for i in range(num_patches_h) for j in range(num_patches_w)]
+    random.shuffle(idxs)
+
+    # 创建一个空的数组来存放新的图像
+    new_rgb = np.zeros_like(rgb)
+    new_gt = np.zeros_like(gt)
+    new_modal_x = np.zeros_like(modal_x)
+
+    # 使用索引重排块
+    idx = 0
+    for i in range(num_patches_h):
+        for j in range(num_patches_w):
+            y_start = i * patch_size
+            y_end = y_start + patch_size
+            x_start = j * patch_size
+            x_end = x_start + patch_size
+
+            src_i, src_j = idxs[idx]
+            src_y_start = src_i * patch_size
+            src_y_end = src_y_start + patch_size
+            src_x_start = src_j * patch_size
+            src_x_end = src_x_start + patch_size
+
+            new_rgb[y_start:y_end, x_start:x_end] = rgb[src_y_start:src_y_end, src_x_start:src_x_end]
+            new_gt[y_start:y_end, x_start:x_end] = gt[src_y_start:src_y_end, src_x_start:src_x_end]
+            new_modal_x[y_start:y_end, x_start:x_end] = modal_x[src_y_start:src_y_end, src_x_start:src_x_end]
+            idx += 1
+
+    return new_rgb, new_gt, new_modal_x
+
 def random_copy_paste(rgb, gt, modal_x, class_indices):
     """
     对单个图像对进行随机复制-粘贴数据增强。
@@ -181,9 +230,10 @@ class TrainPreTif(object):
 
     def __call__(self, rgb, gt, modal_x):
         # rgb, gt, modal_x = copy_paste(rgb, gt, modal_x, [2,5,9])
-        rgb, gt, modal_x = random_copy_paste(rgb, gt, modal_x, [5,9])
+        rgb, gt, modal_x = random_copy_paste(rgb, gt, modal_x, [2,6,8,9])
         rgb, gt, modal_x = random_mirror(rgb, gt, modal_x)
-        rgb, gt, modal_x = random_rotate(rgb, gt, modal_x)
+        rgb, gt, modal_x = random_patch_shuffle(rgb, gt, modal_x)
+        # rgb, gt, modal_x = random_rotate(rgb, gt, modal_x)
         
         
         rgb = normalize_tif(rgb, self.msi_norm_mean, self.msi_norm_std)

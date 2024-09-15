@@ -89,7 +89,7 @@ with Engine(custom_parser=parser) as engine:
         un = model.load_state_dict(param_dict['model'])
         # print(param_dict['model'].keys())
         s_epoch = int(param_dict['epoch'])+1
-        del param_dict
+        
     # group weight and config optimizer
     # freeze_module(model, 'backbone', False)
     # freeze_module(model, 'preprocess', False)
@@ -108,7 +108,6 @@ with Engine(custom_parser=parser) as engine:
     else:
         raise NotImplementedError
     #TODO: resume
-    optimizer.load_state_dict(param_dict['optimizer'])
 
     # config lr policy
     total_iteration = config.nepochs * config.niters_per_epoch
@@ -132,7 +131,8 @@ with Engine(custom_parser=parser) as engine:
                           optimizer=optimizer)
     if engine.continue_state_object:
         engine.restore_checkpoint()
-
+    optimizer.load_state_dict(param_dict['optimizer'])
+    del param_dict
     optimizer.zero_grad()
     model.train()
     # model.backbone.eval()
