@@ -150,6 +150,7 @@ class vssm_base(RGBXTransformer):
             dims=128,
             pretrained='pretrained/vmamba/vssmbase_dp06_ckpt_epoch_241.pth',
             mlp_ratio=0.0,
+            ape=True,
             downsample_version='v1',
             drop_path_rate=0.6, # VMamba-B with droppath 0.5 + no ema. VMamba-B* represents for VMamba-B with droppath 0.6 + ema
         )

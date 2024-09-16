@@ -89,13 +89,44 @@ class PreProcess(nn.Module):
         x = self.block12(x)
         y = self.block3(y)
         return x,y    
-
+    
+class Fusion(nn.Module):
+    def __init__(self, embed_dims, out_dims=[128,256,512,1024]):
+        super(Fusion, self).__init__()
+        self.layers = nn.ModuleList()
+        
+        for i,o in zip(embed_dims,out_dims):
+            self.layers.append(nn.Sequential(
+                nn.Conv2d(i,o,1),
+                CBAM(o),
+                nn.BatchNorm2d(o)
+            ))
+        
+        # self.block = nn.Sequential(*layers)
+        self._initialize_weights()
+        
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.xavier_normal_(m.weight)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+                    
+    def forward(self, x, idx):
+        return self.layers[idx](x)
 class EncoderDecoder(nn.Module):
     def __init__(self, cfg=None, criterion=nn.CrossEntropyLoss(reduction='mean', ignore_index=255, weight=torch.tensor([1.0, 1.0, 2.0, 1.0, 2.0, 1.0,1.0,1.0,1.0,2.0])), norm_layer=nn.BatchNorm2d):
         super(EncoderDecoder, self).__init__()
         self.channels = [64, 128, 320, 512]
         self.norm_layer = norm_layer
-        self.preprocess = PreProcess()
+        # self.preprocess = PreProcess()
         # import backbone and decoder
         if cfg.backbone == 'swin_s':
             logger.info('Using backbone: Swin-Transformer-small')
@@ -225,7 +256,7 @@ class EncoderDecoder(nn.Module):
             return x_last, x_output_0, x_output_1, x_output_2
 
     def forward(self, rgb, modal_x, label=None):
-        rgb, modal_x = self.preprocess(rgb, modal_x)
+        # rgb, modal_x = self.preprocess(rgb, modal_x)
         if not self.deep_supervision:
             if self.aux_head:
                 out, aux_fm = self.encode_decode(rgb, modal_x)
@@ -370,8 +401,10 @@ def verify_and_print_unfrozen_layers(model: nn.Module):
     return has_unfrozen_layers
 if __name__ == "__main__":
     from configs.config_SARMSI import config
-    m = EncoderDecoder(config)
-    freeze_module(m, 'backbone')
-    freeze_module(m, 'preprocess')
-    verify_and_print_unfrozen_layers(m)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    m = EncoderDecoder(config).to(device)
+    # print(m)
+    a = torch.randn((2,3,256,256)).to(device) 
+    b = torch.randn((2,12,256,256)).to(device)
+    m(b,a)
     # print(m)

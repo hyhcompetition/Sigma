@@ -74,7 +74,7 @@ with Engine(custom_parser=parser) as engine:
         engine.link_tb(tb_dir, generate_tb_dir)
 
     # config network and criterion
-    criterion = nn.CrossEntropyLoss(reduction='mean', ignore_index=255, weight=torch.tensor([1.0, 1.0, 2.0, 1.0, 2.0, 1.0,1.0,1.0,1.0,2.0]))#smp.losses.TverskyLoss(mode='multiclass') smp.losses.TverskyLoss(mode='multiclass')
+    criterion = nn.CrossEntropyLoss(reduction='mean', ignore_index=255, weight=torch.tensor([1.0, 1.0, 2.0, 1.0, 1.0, 1.0,2.0,1.0,2.0,1.0]))#smp.losses.TverskyLoss(mode='multiclass') smp.losses.TverskyLoss(mode='multiclass')
 
     if engine.distributed:
         BatchNorm2d = nn.SyncBatchNorm
@@ -83,10 +83,10 @@ with Engine(custom_parser=parser) as engine:
     s_epoch  = 1
     model=segmodel(cfg=config, criterion=criterion, norm_layer=BatchNorm2d)
     #TODO: resume
-    resume = "log_final/log_pst900/log_SARMSI_sigma_base_cromb_conmb_cvssdecoder/checkpoint/epoch-58.pth" # "log_final/log_pst900/log_SARMSI_sigma_base_cromb_conmb_cvssdecoder/checkpoint/epoch-8.pth" # "vssm12-log/log_pst900/log_SARMSI_sigma_tiny_cromb_conmb_cvssdecoder/checkpoint/epoch-72.pth"
+    resume = "with_randompatch/log_pst900/log_SARMSI_sigma_base_cromb_conmb_cvssdecoder/checkpoint/epoch-68.pth" #"log_final/log_pst900/log_SARMSI_sigma_base_cromb_conmb_cvssdecoder/checkpoint/epoch-65.pth" # "log_final/log_pst900/log_SARMSI_sigma_base_cromb_conmb_cvssdecoder/checkpoint/epoch-8.pth" # "vssm12-log/log_pst900/log_SARMSI_sigma_tiny_cromb_conmb_cvssdecoder/checkpoint/epoch-72.pth"
     if resume is not None:
         param_dict = torch.load(resume)
-        un = model.load_state_dict(param_dict['model'])
+        un = model.load_state_dict(param_dict['model'],strict=True)
         # print(param_dict['model'].keys())
         s_epoch = int(param_dict['epoch'])+1
         
@@ -131,7 +131,8 @@ with Engine(custom_parser=parser) as engine:
                           optimizer=optimizer)
     if engine.continue_state_object:
         engine.restore_checkpoint()
-    optimizer.load_state_dict(param_dict['optimizer'])
+    # if resume is not None:
+    #     optimizer.load_state_dict(param_dict['optimizer'])
     del param_dict
     optimizer.zero_grad()
     model.train()

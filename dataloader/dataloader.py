@@ -19,7 +19,7 @@ def random_mirror(rgb, gt, modal_x):
     return rgb, gt, modal_x
 
 def random_patch_shuffle(rgb, gt, modal_x):
-    if random.random() > 0.5:
+    if random.random() > 0.2:
         return rgb, gt, modal_x
 
     # 获取图像尺寸
@@ -96,7 +96,7 @@ def random_copy_paste(rgb, gt, modal_x, class_indices):
         return rgb, gt, modal_x
 
     # 随机选择一些区域进行复制
-    num_regions_to_copy = random.randint(1, len(regions))
+    num_regions_to_copy = random.randint(len(regions)//2, len(regions)) 
     regions_to_copy = random.sample(regions, num_regions_to_copy)
 
     # 复制原始图像，用于修改
@@ -229,11 +229,10 @@ class TrainPreTif(object):
         self.config = config
 
     def __call__(self, rgb, gt, modal_x):
-        # rgb, gt, modal_x = copy_paste(rgb, gt, modal_x, [2,5,9])
-        rgb, gt, modal_x = random_copy_paste(rgb, gt, modal_x, [2,6,8,9])
+        rgb, gt, modal_x = random_copy_paste(rgb, gt, modal_x, [2,6,8,5])
         rgb, gt, modal_x = random_mirror(rgb, gt, modal_x)
         rgb, gt, modal_x = random_patch_shuffle(rgb, gt, modal_x)
-        # rgb, gt, modal_x = random_rotate(rgb, gt, modal_x)
+        rgb, gt, modal_x = random_rotate(rgb, gt, modal_x)
         
         
         rgb = normalize_tif(rgb, self.msi_norm_mean, self.msi_norm_std)
