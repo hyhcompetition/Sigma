@@ -10,6 +10,58 @@ import random
 from scipy.ndimage import label
 from skimage.measure import regionprops
 
+def calculate_indices(image):
+    if random.random() >= 0.5:
+        # 波段索引, 假设波段顺序为 [B1, B2, B3, B4, B5, B6, B7, B8, B9, B10, B11, B12]
+        B2 = image[:,:,1]  # 蓝光
+        B3 = image[:,:,2]  # 绿光
+        B4 = image[:,:,3]  # 红光
+        B5 = image[:,:,4]  # 红边1
+        B8 = image[:,:,7]  # 近红外
+        B11 = image[:,:,10]  # 短波红外 (SWIR2)
+        B12 = image[:,:,11]  # 短波红外 (SWIR3)
+
+        # EVI
+        bsi = ((B11 + B4) - (B8 + B2)) / ((B11 + B4) + (B8 + B2) + 1e-6)
+        
+        # SAVI
+        msavi = (B8 - B4) / ((B8 + B4 + 0.5) * (1 + 0.5) + 1e-6)
+        
+        # NDBI
+        ndbi = (B11 - B8) / (B11 + B8 + 1e-6)
+        
+        # NDWI
+        ndwi = (B3 - B8) / (B3 + B8 + 1e-6)
+        
+        # NMDI
+        nmdi = (B11 - (B8 - B12)) / (B11 + (B8 + B12) + 1e-6)
+        
+        # AWEI
+        awei = 4 * (B3 - B11) - (0.25 * B8 + 2.75 * B12)
+        
+        # RECI
+        reci = B8 / (B5 + 1e-6) 
+        
+        # NDII
+        ndii = (B8 - B11) / (B8 + B11 + 1e-6)
+        
+        # Chlorophyll Index
+        chlorophyll_index = B8 / (B4 + 1e-6) 
+        
+        # Turbidity Index
+        turbidity_index = B4 / B3
+        
+        # NDMI
+        ndmi = (B8 - B11) / (B8 + B11 + 1e-6)
+        
+        # NDVI
+        arvi = (B8 - (2 * B4 - B2)) / (B8 + (2 * B4 - B2) + 1e-6)
+        
+        # 将所有计算的指数堆叠成一个多通道数组
+        indices = np.stack([bsi, msavi, ndbi, ndwi, nmdi, awei, reci, ndii, chlorophyll_index, turbidity_index, ndmi, arvi], axis=0)
+        
+        return indices
+
 def random_mirror(rgb, gt, modal_x):
     if random.random() >= 0.5:
         rgb = cv2.flip(rgb, 1)
@@ -237,6 +289,8 @@ class TrainPreTif(object):
         
         rgb = normalize_tif(rgb, self.msi_norm_mean, self.msi_norm_std)
         modal_x = normalize_tif(modal_x, self.sar_norm_mean, self.sar_norm_std)
+        
+        rgb = calculate_indices(rgb)
 
         rgb = rgb.transpose(2, 0, 1)
         modal_x = modal_x.transpose(2, 0, 1)

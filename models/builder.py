@@ -11,10 +11,16 @@ from mmcv.ops import DeformConv2d
 
 # Define deformable convolutional layer
 class DeformableConvLayer(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=1):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True):
         super(DeformableConvLayer, self).__init__()
-        self.offset_conv = nn.Conv2d(in_channels, 2 * kernel_size * kernel_size, kernel_size, stride, padding)
-        self.deform_conv = DeformConv2d(in_channels, out_channels, kernel_size, stride, padding)
+        self.groups = groups
+        # Offset convolution still uses in_channels for the number of input channels,
+        # but the number of output channels is multiplied by 2 * kernel_size * kernel_size to match the offset shape
+        self.offset_conv = nn.Conv2d(in_channels, 2 * kernel_size * kernel_size * groups, 
+                                     kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias)
+        # Deformable convolution uses groups and the same additional parameters
+        self.deform_conv = DeformConv2d(in_channels, out_channels, kernel_size=kernel_size, 
+                                        stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias)
 
     def forward(self, x):
         offset = self.offset_conv(x)
