@@ -13,25 +13,37 @@ import torch.utils.checkpoint as checkpoint
 from einops import rearrange, repeat
 from timm.models.layers import DropPath, trunc_normal_
 from fvcore.nn import FlopCountAnalysis, flop_count_str, flop_count, parameter_count
-from mmcv.ops import DeformConv2d
 import torch.nn as nn
+from torchvision.ops import DeformConv2d
 
 class DeformableConvLayer(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, 
+                 dilation=1, groups=1, deformable_groups=1, bias=True):
         super(DeformableConvLayer, self).__init__()
-        self.groups = groups
-        # Offset convolution still uses in_channels for the number of input channels,
-        # but the number of output channels is multiplied by 2 * kernel_size * kernel_size to match the offset shape
-        self.offset_conv = nn.Conv2d(in_channels, 2 * kernel_size * kernel_size * groups, 
-                                     kernel_size=kernel_size, stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias)
-        # Deformable convolution uses groups and the same additional parameters
-        self.deform_conv = DeformConv2d(in_channels, out_channels, kernel_size=kernel_size, 
-                                        stride=stride, padding=padding, dilation=dilation, groups=groups, bias=bias)
-
-    def forward(self, x):
-        offset = self.offset_conv(x)
-        x = self.deform_conv(x, offset)
-        return x
+        
+        # Offset convolution layer
+        self.offset_conv = nn.Conv2d(
+            in_channels, 
+            2 * kernel_size * kernel_size * deformable_groups,
+            kernel_size=kernel_size, 
+            stride=stride, 
+            padding=padding, 
+            dilation=dilation,
+            bias=False
+        )
+        
+        # Deformable convolution layer
+        self.deform_conv = DeformConv2d(
+            in_channels, 
+            out_channels, 
+            kernel_size=kernel_size, 
+            stride=stride, 
+            padding=padding, 
+            dilation=dilation, 
+            groups=groups, 
+            deformable_groups=deformable_groups,
+            bias=bias
+        )
 DropPath.__repr__ = lambda self: f"timm.DropPath({self.drop_prob})"
 
 # import mamba_ssm.selective_scan_fn (in which causal_conv1d is needed)
@@ -700,7 +712,7 @@ class SS2D(nn.Module):
         # conv =======================================
         if self.d_conv > 1:
             #TODO: change to deconv2d
-            self.conv2d = DeformableConvLayer(self.d_inner, self.d_inner,kernel_size=d_conv, stride=1, padding=(d_conv - 1) // 2, groups=self.d_inner, bias=conv_bias)
+            self.conv2d = DeformableConvLayer(self.d_inner, self.d_inner,kernel_size=d_conv, stride=1, padding=(d_conv - 1) // 2, groups=self.d_inner, deformable_groups=self.d_inner,bias=conv_bias)
             # self.conv2d = nn.Conv2d(
             #     in_channels=self.d_inner,
             #     out_channels=self.d_inner,
@@ -1158,7 +1170,7 @@ class ConMB_SS2D(nn.Module):
         # conv =======================================
         if self.d_conv > 1:
             #TODO: change to deconv2d
-            self.conv2d = DeformableConvLayer(self.d_inner, self.d_inner,kernel_size=d_conv, stride=1, padding=(d_conv - 1) // 2, groups=self.d_inner, bias=conv_bias)
+            self.conv2d = DeformableConvLayer(self.d_inner, self.d_inner,kernel_size=d_conv, stride=1, padding=(d_conv - 1) // 2, groups=self.d_inner, deformable_groups=self.d_inner,bias=conv_bias)
             # self.conv2d = nn.Conv2d(
             #     in_channels=self.d_inner,
             #     out_channels=self.d_inner,
@@ -1168,7 +1180,7 @@ class ConMB_SS2D(nn.Module):
             #     padding=(d_conv - 1) // 2,
             #     **factory_kwargs,
             # )
-            self.conv2d_modalx = DeformableConvLayer(self.d_inner, self.d_inner,kernel_size=d_conv, stride=1, padding=(d_conv - 1) // 2, groups=self.d_inner, bias=conv_bias)
+            self.conv2d_modalx = DeformableConvLayer(self.d_inner, self.d_inner,kernel_size=d_conv, stride=1, padding=(d_conv - 1) // 2, groups=self.d_inner, deformable_groups=self.d_inner,bias=conv_bias)
             # self.conv2d_modalx = nn.Conv2d(
             #     in_channels=self.d_inner,
             #     out_channels=self.d_inner,
@@ -1615,7 +1627,7 @@ class CrossMambaFusion_SS2D_SSM(nn.Module):
         # conv =======================================
         if self.d_conv > 1:
             #TODO: change to deconv2d
-            self.conv2d = DeformableConvLayer(self.d_inner, self.d_inner,kernel_size=d_conv, stride=1, padding=(d_conv - 1) // 2, groups=self.d_inner, bias=conv_bias)
+            self.conv2d = DeformableConvLayer(self.d_inner, self.d_inner,kernel_size=d_conv, stride=1, padding=(d_conv - 1) // 2, groups=self.d_inner, deformable_groups=self.d_inner,bias=conv_bias)
             # self.conv2d = nn.Conv2d(
             #     in_channels=self.d_inner,
             #     out_channels=self.d_inner,
